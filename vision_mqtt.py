@@ -106,9 +106,22 @@ class EdgeVision:
             return None
         
         try:
-            img = Image.open("snap.jpg").resize((320, 320))
-            input_data = np.expand_dims(np.array(img, dtype=np.float32) / 255.0, axis=0)
+            # Open original high-res photo for TFLite (320x320)
+            orig_img = Image.open("snap.jpg")
             
+            # 1. Resize for TFLite
+            tflite_img = orig_img.resize((320, 320))
+            input_data = np.expand_dims(np.array(tflite_img, dtype=np.float32) / 255.0, axis=0)
+            
+            # 2. ALSO save a compressed version for Telegram (max 1024px width, quality 85)
+            # This ensures we don't hit the 10MB Telegram limit
+            if self.telegram:
+                max_size = (1024, 1024)
+                tg_img = orig_img.copy()
+                tg_img.thumbnail(max_size, Image.Resampling.LANCZOS)
+                tg_img.save("snap_tg.jpg", "JPEG", quality=85)
+                print("[DEBUG] Compressed photo saved for Telegram.")
+
             self.interpreter.set_tensor(self.interpreter.get_input_details()[0]['index'], input_data)
             self.interpreter.invoke()
             
@@ -142,7 +155,10 @@ class EdgeVision:
                         print("[DEBUG] Sending Telegram notification...")
                         if not self.telegram.chat_id:
                             self.telegram.get_chat_id()
-                        self.telegram.send_photo("snap.jpg", caption=msg)
+                        
+                        # Use compressed photo if available
+                        tg_photo = "snap_tg.jpg" if os.path.exists("snap_tg.jpg") else "snap.jpg"
+                        self.telegram.send_photo(tg_photo, caption=msg)
                     
                     self.last_pub = now
             
