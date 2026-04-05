@@ -87,10 +87,19 @@ class EdgeVision:
 
     def process_frame(self):
         print("\n[DEBUG] Capturing frame...", end=" ", flush=True)
-        os.system("termux-camera-photo -c 0 snap.jpg > /dev/null 2>&1")
-        if not os.path.exists("snap.jpg"):
-            print("FAILED (snap.jpg not found)")
+        # Use a temporary filename to avoid reading partial files
+        tmp_file = "snap_tmp.jpg"
+        if os.path.exists(tmp_file): os.remove(tmp_file)
+        
+        os.system(f"termux-camera-photo -c 0 {tmp_file} > /dev/null 2>&1")
+        
+        if not os.path.exists(tmp_file) or os.path.getsize(tmp_file) == 0:
+            print("FAILED (empty photo). Check permissions or camera ID!")
             return None
+        
+        # Rename to final filename
+        if os.path.exists("snap.jpg"): os.remove("snap.jpg")
+        os.rename(tmp_file, "snap.jpg")
         
         try:
             img = Image.open("snap.jpg").resize((320, 320))
@@ -104,7 +113,7 @@ class EdgeVision:
             print(f"DONE (Conf: {max_person_conf:.2f})")
             return max_person_conf
         except Exception as e:
-            print(f"ERROR: {e}")
+            print(f"ERROR (Invalid Photo): {e}")
             return None
 
     def run(self, threshold=0.6):
