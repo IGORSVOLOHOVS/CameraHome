@@ -71,13 +71,15 @@ class TelegramNotifier:
 @details Handles periodic snapshots and TFLite inference.
 """
 class EdgeVision:
-    def __init__(self, model_path, telegram=None):
+    def __init__(self, model_path, telegram=None, camera_id=0):
         self.interpreter = tflite.Interpreter(model_path=model_path)
         self.interpreter.allocate_tensors()
         self.mqtt = None
         self.telegram = telegram
         self.last_pub = 0
         self.topic = "home/camera/detection"
+        self.snapshot_path = "snap.jpg"
+        self.camera_id = camera_id
 
     def setup_net(self, host, port=1883):
         if not host:
@@ -95,19 +97,28 @@ class EdgeVision:
 
     def process_frame(self):
         print("\n[DEBUG] Capturing frame...", end=" ", flush=True)
-        # Use a temporary filename to avoid reading partial files
-        tmp_file = "snap_tmp.jpg"
-        if os.path.exists(tmp_file): os.remove(tmp_file)
+        if os.path.exists(self.snapshot_path): os.remove(self.snapshot_path)
         
-        os.system(f"termux-camera-photo -c 0 {tmp_file} > /dev/null 2>&1")
+        # Capture photo using termux-api with a timeout
+        try:
+            import subprocess
+            cmd = ["termux-camera-photo", "-c", str(getattr(self, 'camera_id', 0)), self.snapshot_path]
+            # Redirect stdout/stderr to devnull
+            subprocess.run(cmd, timeout=15, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except subprocess.TimeoutExpired:
+            print("FAILED (Timeout). Another app might be using the camera or permission was not granted!")
+            return None
+        except Exception as e:
+            print(f"FAILED (Error): {e}")
+            return None
         
-        if not os.path.exists(tmp_file) or os.path.getsize(tmp_file) == 0:
-            print("FAILED (empty photo). Check permissions or camera ID!")
+        if not os.path.exists(self.snapshot_path) or os.path.getsize(self.snapshot_path) == 0:
+            print("FAILED (empty photo). Check permissions or camera ID! Try running 'termux-camera-info' to see available IDs.")
             return None
         
         try:
-            # Open original high-res photo for TFLite (320x320)
-            orig_img = Image.open("snap.jpg")
+            # Open captured photo for TFLite
+            orig_img = Image.open(self.snapshot_path)
             
             # 1. Resize for TFLite
             tflite_img = orig_img.resize((320, 320))
@@ -149,7 +160,7 @@ class EdgeVision:
                         
                         try:
                             # 2. Compress ONLY when sending (640px, quality 70 for speed)
-                            orig_img = Image.open("snap.jpg")
+                            orig_img = Image.open(self.snapshot_path)
                             orig_img.thumbnail((640, 640), Image.Resampling.LANCZOS)
                             orig_img.save("snap_tg.jpg", "JPEG", quality=70)
                             
@@ -168,10 +179,11 @@ if __name__ == "__main__":
     parser.add_argument("--token", default="REDACTED_TOKEN", help="Telegram Bot Token")
     parser.add_argument("--chat_id", help="Telegram Chat ID (optional)")
     parser.add_argument("--threshold", type=float, default=0.6, help="Detection threshold")
+    parser.add_argument("--camera", type=int, default=0, help="Camera ID to use (check termux-camera-info)")
     
     args = parser.parse_args()
 
     tg = TelegramNotifier(args.token, args.chat_id) if args.token else None
-    vision = EdgeVision(args.model, telegram=tg)
+    vision = EdgeVision(args.model, telegram=tg, camera_id=args.camera)
     vision.setup_net(args.host)
     vision.run(threshold=args.threshold)
