@@ -97,10 +97,6 @@ class EdgeVision:
             print("FAILED (empty photo). Check permissions or camera ID!")
             return None
         
-        # Rename to final filename
-        if os.path.exists("snap.jpg"): os.remove("snap.jpg")
-        os.rename(tmp_file, "snap.jpg")
-        
         try:
             img = Image.open("snap.jpg").resize((320, 320))
             input_data = np.expand_dims(np.array(img, dtype=np.float32) / 255.0, axis=0)
