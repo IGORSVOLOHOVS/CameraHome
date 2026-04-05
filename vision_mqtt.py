@@ -26,7 +26,7 @@ class TelegramNotifier:
         @brief Fetches Chat ID from the latest bot update.
         """
         try:
-            r = requests.get(f"{self.base_url}/getUpdates").json()
+            r = requests.get(f"{self.base_url}/getUpdates", timeout=10).json()
             if r.get("ok") and r.get("result"):
                 # Get Chat ID from the last message
                 last_update = r["result"][-1]
@@ -44,7 +44,7 @@ class TelegramNotifier:
     def send_message(self, text):
         if not self.chat_id: return
         try:
-            r = requests.post(f"{self.base_url}/sendMessage", data={"chat_id": self.chat_id, "text": text}).json()
+            r = requests.post(f"{self.base_url}/sendMessage", data={"chat_id": self.chat_id, "text": text}, timeout=10).json()
             if not r.get("ok"):
                 print(f"[ERROR] Telegram Message failed: {r.get('description')}")
             else:
@@ -58,7 +58,7 @@ class TelegramNotifier:
             with open(photo_path, 'rb') as photo:
                 r = requests.post(f"{self.base_url}/sendPhoto", 
                               data={"chat_id": self.chat_id, "caption": caption},
-                              files={"photo": photo}).json()
+                              files={"photo": photo}, timeout=10).json()
                 if not r.get("ok"):
                     print(f"[ERROR] Telegram Photo failed: {r.get('description')}")
                 else:
@@ -135,7 +135,7 @@ class EdgeVision:
             print(f"ERROR (Invalid Photo): {e}")
             return None
 
-    def run(self, threshold=0.6, cooldown=180):
+    def run(self, threshold=0.6, cooldown=30):
         print(f"[START] Monitoring... Threshold: {threshold}, Cooldown: {cooldown}s")
         while True:
             conf = self.process_frame()
@@ -180,10 +180,11 @@ if __name__ == "__main__":
     parser.add_argument("--chat_id", help="Telegram Chat ID (optional)")
     parser.add_argument("--threshold", type=float, default=0.6, help="Detection threshold")
     parser.add_argument("--camera", type=int, default=0, help="Camera ID to use (check termux-camera-info)")
+    parser.add_argument("--cooldown", type=int, default=30, help="Cooldown between notifications (seconds)")
     
     args = parser.parse_args()
 
     tg = TelegramNotifier(args.token, args.chat_id) if args.token else None
     vision = EdgeVision(args.model, telegram=tg, camera_id=args.camera)
     vision.setup_net(args.host)
-    vision.run(threshold=args.threshold)
+    vision.run(threshold=args.threshold, cooldown=args.cooldown)
