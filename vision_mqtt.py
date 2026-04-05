@@ -44,19 +44,27 @@ class TelegramNotifier:
     def send_message(self, text):
         if not self.chat_id: return
         try:
-            requests.post(f"{self.base_url}/sendMessage", data={"chat_id": self.chat_id, "text": text})
+            r = requests.post(f"{self.base_url}/sendMessage", data={"chat_id": self.chat_id, "text": text}).json()
+            if not r.get("ok"):
+                print(f"[ERROR] Telegram Message failed: {r.get('description')}")
+            else:
+                print("[DEBUG] Telegram Message sent!")
         except Exception as e:
-            print(f"[ERROR] Telegram message failed: {e}")
+            print(f"[ERROR] Telegram network error: {e}")
 
     def send_photo(self, photo_path, caption=None):
         if not self.chat_id: return
         try:
             with open(photo_path, 'rb') as photo:
-                requests.post(f"{self.base_url}/sendPhoto", 
+                r = requests.post(f"{self.base_url}/sendPhoto", 
                               data={"chat_id": self.chat_id, "caption": caption},
-                              files={"photo": photo})
+                              files={"photo": photo}).json()
+                if not r.get("ok"):
+                    print(f"[ERROR] Telegram Photo failed: {r.get('description')}")
+                else:
+                    print("[DEBUG] Telegram Photo sent!")
         except Exception as e:
-            print(f"[ERROR] Telegram photo failed: {e}")
+            print(f"[ERROR] Telegram network error: {e}")
 
 """!
 @brief Main logic for Edge Vision MQTT on Termux.
