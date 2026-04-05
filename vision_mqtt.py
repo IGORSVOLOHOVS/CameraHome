@@ -163,7 +163,7 @@ class EdgeVision:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Edge Vision on Termux")
-    parser.add_argument("--model", default="yolo.tflite", help="Path to TFLite model")
+    parser.add_argument("--model", default="yolov8n_float16.tflite", help="Path to TFLite model")
     parser.add_argument("--host", help="MQTT Broker IP address")
     parser.add_argument("--token", default="REDACTED_TOKEN", help="Telegram Bot Token")
     parser.add_argument("--chat_id", help="Telegram Chat ID (optional)")
