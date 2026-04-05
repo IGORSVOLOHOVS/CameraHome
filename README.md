@@ -12,7 +12,10 @@ An AI-powered security system that runs entirely on your Android phone via Termu
 - 🤖 **Smart Detection**: Specifically tuned for person detection to avoid false alarms.
 - 🎨 **Visual Alerts**: Draws bold green bounding boxes and confidence scores directly on photos.
 - 💬 **Telegram Notifications**: Snapshot delivery with caption to your private bot.
-- 🏠 **Home Assistant Ready**: Publishes detection events to MQTT.
+
+### 🔜 Planned Features
+- 🏠 **Home Assistant Integration**: Publish detection events via MQTT.
+- 📂 **Cloud Backup**: Automatically save snapshots to Google Drive/Dropbox.
 
 ---
 
