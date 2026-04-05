@@ -5,7 +5,7 @@ import argparse
 import requests
 import numpy as np
 import paho.mqtt.client as mqtt
-from PIL import Image
+from PIL import Image, ImageDraw
 
 try:
     import tflite_runtime.interpreter as tflite
@@ -128,7 +128,28 @@ class EdgeVision:
             self.interpreter.invoke()
             
             output = self.interpreter.get_tensor(self.interpreter.get_output_details()[0]['index'])[0]
-            max_person_conf = np.max(output[4]) # Index 4 is Class 0 (Person)
+            # output shape: [84, 8400] - Rows: cx, cy, w, h, class0, class1...
+            person_scores = output[4]
+            best_idx = np.argmax(person_scores)
+            max_person_conf = person_scores[best_idx]
+            
+            # If detected, draw box on the original image
+            if max_person_conf > 0.3: # Low threshold for drawing
+                cx, cy, w, h = output[0:4, best_idx]
+                
+                # Scale to original image size
+                img_w, img_h = orig_img.size
+                x1 = (cx - w/2) * (img_w / 640.0)
+                y1 = (cy - h/2) * (img_h / 640.0)
+                x2 = (cx + w/2) * (img_w / 640.0)
+                y2 = (cy + h/2) * (img_h / 640.0)
+                
+                # Draw green rectangle
+                draw = ImageDraw.Draw(orig_img)
+                draw.rectangle([x1, y1, x2, y2], outline="green", width=5)
+                # Overwrite the captured photo with the annotated one
+                orig_img.save(self.snapshot_path)
+
             print(f"DONE (Conf: {max_person_conf:.2f})")
             return max_person_conf
         except Exception as e:
