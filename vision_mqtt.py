@@ -134,19 +134,23 @@ class EdgeVision:
             max_person_conf = person_scores[best_idx]
             
             # If detected, draw box on the original image
-            if max_person_conf > 0.3: # Low threshold for drawing
+            if max_person_conf > 0.3:
                 cx, cy, w, h = output[0:4, best_idx]
                 
-                # Scale to original image size
-                img_w, img_h = orig_img.size
-                x1 = (cx - w/2) * (img_w / 640.0)
-                y1 = (cy - h/2) * (img_h / 640.0)
-                x2 = (cx + w/2) * (img_w / 640.0)
-                y2 = (cy + h/2) * (img_h / 640.0)
+                # Robust scaling: Check if coords are normalized (0-1) or pixels (0-640)
+                scale_factor = 1.0 if cx <= 1.0 else (1.0 / 640.0)
                 
-                # Draw green rectangle
+                img_w, img_h = orig_img.size
+                x1 = (cx - w/2) * scale_factor * img_w
+                y1 = (cy - h/2) * scale_factor * img_h
+                x2 = (cx + w/2) * scale_factor * img_w
+                y2 = (cy + h/2) * scale_factor * img_h
+                
+                print(f"[DEBUG] Box (orig): {x1:.0f},{y1:.0f} to {x2:.0f},{y2:.0f}")
+                
+                # Draw red rectangle for better visibility
                 draw = ImageDraw.Draw(orig_img)
-                draw.rectangle([x1, y1, x2, y2], outline="green", width=5)
+                draw.rectangle([x1, y1, x2, y2], outline="red", width=8)
                 # Overwrite the captured photo with the annotated one
                 orig_img.save(self.snapshot_path)
 
