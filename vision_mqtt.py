@@ -120,8 +120,8 @@ class EdgeVision:
             # Open captured photo for TFLite
             orig_img = Image.open(self.snapshot_path)
             
-            # 1. Resize for TFLite
-            tflite_img = orig_img.resize((320, 320))
+            # 1. Resize for TFLite (YOLOv8 usually expects 640x640)
+            tflite_img = orig_img.resize((640, 640))
             input_data = np.expand_dims(np.array(tflite_img, dtype=np.float32) / 255.0, axis=0)
             
             self.interpreter.set_tensor(self.interpreter.get_input_details()[0]['index'], input_data)
