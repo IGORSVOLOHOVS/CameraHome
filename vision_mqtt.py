@@ -113,15 +113,6 @@ class EdgeVision:
             tflite_img = orig_img.resize((320, 320))
             input_data = np.expand_dims(np.array(tflite_img, dtype=np.float32) / 255.0, axis=0)
             
-            # 2. ALSO save a compressed version for Telegram (max 1024px width, quality 85)
-            # This ensures we don't hit the 10MB Telegram limit
-            if self.telegram:
-                max_size = (1024, 1024)
-                tg_img = orig_img.copy()
-                tg_img.thumbnail(max_size, Image.Resampling.LANCZOS)
-                tg_img.save("snap_tg.jpg", "JPEG", quality=85)
-                print("[DEBUG] Compressed photo saved for Telegram.")
-
             self.interpreter.set_tensor(self.interpreter.get_input_details()[0]['index'], input_data)
             self.interpreter.invoke()
             
@@ -133,8 +124,8 @@ class EdgeVision:
             print(f"ERROR (Invalid Photo): {e}")
             return None
 
-    def run(self, threshold=0.6):
-        print(f"[START] Monitoring... Threshold: {threshold}")
+    def run(self, threshold=0.6, cooldown=180):
+        print(f"[START] Monitoring... Threshold: {threshold}, Cooldown: {cooldown}s")
         while True:
             conf = self.process_frame()
             now = time.time()
@@ -144,25 +135,31 @@ class EdgeVision:
                 msg = f"[{timestamp}] PERSON DETECTED! (Conf: {conf:.2f})"
                 print(f"!!! {msg} !!!")
                 
-                # Cooldown check (40 seconds)
-                if (now - self.last_pub > 40):
+                # Notification logic with cooldown
+                if (now - self.last_pub > cooldown):
                     # MQTT
                     if self.mqtt:
                         self.mqtt.publish(self.topic, json.dumps({"status": "detected", "confidence": float(conf)}))
                     
                     # Telegram
                     if self.telegram:
-                        print("[DEBUG] Sending Telegram notification...")
+                        print("[DEBUG] Compressing and sending Telegram notification...")
                         if not self.telegram.chat_id:
                             self.telegram.get_chat_id()
                         
-                        # Use compressed photo if available
-                        tg_photo = "snap_tg.jpg" if os.path.exists("snap_tg.jpg") else "snap.jpg"
-                        self.telegram.send_photo(tg_photo, caption=msg)
+                        try:
+                            # 2. Compress ONLY when sending (640px, quality 70 for speed)
+                            orig_img = Image.open("snap.jpg")
+                            orig_img.thumbnail((640, 640), Image.Resampling.LANCZOS)
+                            orig_img.save("snap_tg.jpg", "JPEG", quality=70)
+                            
+                            self.telegram.send_photo("snap_tg.jpg", caption=msg)
+                        except Exception as e:
+                            print(f"[ERROR] Failed to compress/send: {e}")
                     
                     self.last_pub = now
             
-            time.sleep(0.5)
+            time.sleep(1)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Edge Vision on Termux")
