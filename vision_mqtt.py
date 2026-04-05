@@ -86,9 +86,10 @@ class EdgeVision:
             self.mqtt = None
 
     def process_frame(self):
-        os.system("termux-camera-photo -c 0 snap.jpg")
+        print("\n[DEBUG] Capturing frame...", end=" ", flush=True)
+        os.system("termux-camera-photo -c 0 snap.jpg > /dev/null 2>&1")
         if not os.path.exists("snap.jpg"):
-            print("[WARN] snap.jpg not found, skipping frame.")
+            print("FAILED (snap.jpg not found)")
             return None
         
         try:
@@ -100,9 +101,10 @@ class EdgeVision:
             
             output = self.interpreter.get_tensor(self.interpreter.get_output_details()[0]['index'])[0]
             max_person_conf = np.max(output[4]) # Index 4 is Class 0 (Person)
+            print(f"DONE (Conf: {max_person_conf:.2f})")
             return max_person_conf
         except Exception as e:
-            print(f"[ERROR] Detection failed: {e}")
+            print(f"ERROR: {e}")
             return None
 
     def run(self, threshold=0.6):
@@ -114,9 +116,9 @@ class EdgeVision:
             if conf and conf > threshold:
                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
                 msg = f"[{timestamp}] PERSON DETECTED! (Conf: {conf:.2f})"
-                print(msg)
+                print(f"!!! {msg} !!!")
                 
-                # Cooldown check (5 seconds)
+                # Cooldown check (40 seconds)
                 if (now - self.last_pub > 40):
                     # MQTT
                     if self.mqtt:
@@ -124,13 +126,14 @@ class EdgeVision:
                     
                     # Telegram
                     if self.telegram:
+                        print("[DEBUG] Sending Telegram notification...")
                         if not self.telegram.chat_id:
                             self.telegram.get_chat_id()
                         self.telegram.send_photo("snap.jpg", caption=msg)
                     
                     self.last_pub = now
             
-            time.sleep(1)
+            time.sleep(0.5)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Edge Vision on Termux")
