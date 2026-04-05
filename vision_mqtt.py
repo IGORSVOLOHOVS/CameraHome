@@ -2,6 +2,7 @@ import os
 import time
 import json
 import argparse
+import requests
 import numpy as np
 import paho.mqtt.client as mqtt
 from PIL import Image
@@ -12,46 +13,79 @@ except ImportError:
     import tensorflow.lite as tflite
 
 """!
+@brief Notification handler for Telegram.
+"""
+class TelegramNotifier:
+    def __init__(self, token, chat_id=None):
+        self.token = token
+        self.chat_id = chat_id
+        self.base_url = f"https://api.telegram.org/bot{token}"
+
+    def get_chat_id(self):
+        """!
+        @brief Fetches Chat ID from the latest bot update.
+        """
+        try:
+            r = requests.get(f"{self.base_url}/getUpdates").json()
+            if r.get("ok") and r.get("result"):
+                # Get Chat ID from the last message
+                last_update = r["result"][-1]
+                chat_id = last_update.get("message", {}).get("chat", {}).get("id")
+                if chat_id:
+                    self.chat_id = chat_id
+                    print(f"[SUCCESS] Found Telegram Chat ID: {self.chat_id}")
+                    return True
+            print("[WARN] No messages found for the bot. Please send any message to your bot on Telegram!")
+            return False
+        except Exception as e:
+            print(f"[ERROR] Chat discovery failed: {e}")
+            return False
+
+    def send_message(self, text):
+        if not self.chat_id: return
+        try:
+            requests.post(f"{self.base_url}/sendMessage", data={"chat_id": self.chat_id, "text": text})
+        except Exception as e:
+            print(f"[ERROR] Telegram message failed: {e}")
+
+    def send_photo(self, photo_path, caption=None):
+        if not self.chat_id: return
+        try:
+            with open(photo_path, 'rb') as photo:
+                requests.post(f"{self.base_url}/sendPhoto", 
+                              data={"chat_id": self.chat_id, "caption": caption},
+                              files={"photo": photo})
+        except Exception as e:
+            print(f"[ERROR] Telegram photo failed: {e}")
+
+"""!
 @brief Main logic for Edge Vision MQTT on Termux.
 @details Handles periodic snapshots and TFLite inference.
 """
 class EdgeVision:
-    """!
-    @brief Core class for surveillance automation.
-    @param[in] model_path Path to local .tflite file.
-    """
-    def __init__(self, model_path):
+    def __init__(self, model_path, telegram=None):
         self.interpreter = tflite.Interpreter(model_path=model_path)
         self.interpreter.allocate_tensors()
         self.mqtt = None
+        self.telegram = telegram
         self.last_pub = 0
         self.topic = "home/camera/detection"
 
-    """!
-    @brief Connects to MQTT broker.
-    @param[in] host Broker IP address.
-    @param[in] port Broker Port.
-    """
     def setup_net(self, host, port=1883):
         if not host:
-            print("[INFO] MQTT Host not provided, running in local-only mode.")
+            print("[INFO] MQTT Host not provided, skipping MQTT.")
             return
 
         try:
             self.mqtt = mqtt.Client()
             self.mqtt.connect(host, port, 60)
             self.mqtt.loop_start()
-            print(f"[SUCCESS] Connected to MQTT broker at {host}:{port}")
+            print(f"[SUCCESS] Connected to MQTT at {host}:{port}")
         except Exception as e:
-            print(f"[ERROR] Failed to connect to MQTT: {e}")
+            print(f"[ERROR] MQTT failed: {e}")
             self.mqtt = None
 
-    """!
-    @brief Captures frame and runs YOLOv8 detection.
-    @return float Maximum confidence score for class 0 (person).
-    """
     def process_frame(self):
-        # Capture photo using Termux API
         os.system("termux-camera-photo -c 0 snap.jpg")
         if not os.path.exists("snap.jpg"):
             print("[WARN] snap.jpg not found, skipping frame.")
@@ -65,16 +99,12 @@ class EdgeVision:
             self.interpreter.invoke()
             
             output = self.interpreter.get_tensor(self.interpreter.get_output_details()[0]['index'])[0]
-            # YOLOv8 output: [1, 84, 8400] -> Index 4 is Class 0 (Person)
-            max_person_conf = np.max(output[4])
+            max_person_conf = np.max(output[4]) # Index 4 is Class 0 (Person)
             return max_person_conf
         except Exception as e:
             print(f"[ERROR] Detection failed: {e}")
             return None
 
-    """!
-    @brief Main detection loop.
-    """
     def run(self, threshold=0.6):
         print(f"[START] Monitoring... Threshold: {threshold}")
         while True:
@@ -83,24 +113,36 @@ class EdgeVision:
             
             if conf and conf > threshold:
                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-                print(f"[{timestamp}] PERSON DETECTED! Confidence: {conf:.2f}")
+                msg = f"[{timestamp}] PERSON DETECTED! (Conf: {conf:.2f})"
+                print(msg)
                 
-                # Publish to MQTT if connected
-                if self.mqtt and (now - self.last_pub > 5):
-                    self.mqtt.publish(self.topic, json.dumps({"status": "detected", "confidence": float(conf)}))
+                # Cooldown check (5 seconds)
+                if (now - self.last_pub > 40):
+                    # MQTT
+                    if self.mqtt:
+                        self.mqtt.publish(self.topic, json.dumps({"status": "detected", "confidence": float(conf)}))
+                    
+                    # Telegram
+                    if self.telegram:
+                        if not self.telegram.chat_id:
+                            self.telegram.get_chat_id()
+                        self.telegram.send_photo("snap.jpg", caption=msg)
+                    
                     self.last_pub = now
             
             time.sleep(1)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Edge Vision MQTT on Termux")
+    parser = argparse.ArgumentParser(description="Edge Vision on Termux")
     parser.add_argument("--model", default="yolo.tflite", help="Path to TFLite model")
     parser.add_argument("--host", help="MQTT Broker IP address")
-    parser.add_argument("--port", type=int, default=1883, help="MQTT Broker port")
-    parser.add_argument("--threshold", type=float, default=0.6, help="Detection threshold (0.0-1.0)")
+    parser.add_argument("--token", default="REDACTED_TOKEN", help="Telegram Bot Token")
+    parser.add_argument("--chat_id", help="Telegram Chat ID (optional)")
+    parser.add_argument("--threshold", type=float, default=0.6, help="Detection threshold")
     
     args = parser.parse_args()
 
-    vision = EdgeVision(args.model)
-    vision.setup_net(args.host, args.port)
+    tg = TelegramNotifier(args.token, args.chat_id) if args.token else None
+    vision = EdgeVision(args.model, telegram=tg)
+    vision.setup_net(args.host)
     vision.run(threshold=args.threshold)
