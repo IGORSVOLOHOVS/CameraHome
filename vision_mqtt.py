@@ -148,9 +148,17 @@ class EdgeVision:
                 
                 print(f"[DEBUG] Box (orig): {x1:.0f},{y1:.0f} to {x2:.0f},{y2:.0f}")
                 
-                # Draw red rectangle for better visibility
+                # Draw green rectangle - triple thickness for "big borders"
                 draw = ImageDraw.Draw(orig_img)
-                draw.rectangle([x1, y1, x2, y2], outline="red", width=8)
+                box_color = "green"
+                draw.rectangle([x1, y1, x2, y2], outline=box_color, width=24)
+                
+                # Confidence label above the box
+                label = f"PERSON {max_person_conf:.2f}"
+                # Background for text (makes it readable)
+                draw.rectangle([x1, y1 - 60, x1 + 450, y1], fill=box_color)
+                draw.text((x1 + 10, y1 - 55), label, fill="white")
+                
                 # Overwrite the captured photo with the annotated one
                 orig_img.save(self.snapshot_path)
 
