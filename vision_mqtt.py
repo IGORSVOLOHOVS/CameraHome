@@ -5,7 +5,20 @@ import argparse
 import requests
 import numpy as np
 import paho.mqtt.client as mqtt
-from PIL import Image, ImageDraw
+import cv2  # OpenCV for better drawing
+from PIL import Image
+
+# Simple .env loader to keep keys secure
+def load_env(path=".env"):
+    if not os.path.exists(path):
+        return
+    with open(path) as f:
+        for line in f:
+            if "=" in line and not line.startswith("#"):
+                k, v = line.strip().split("=", 1)
+                os.environ[k] = v
+
+load_env()
 
 try:
     import tflite_runtime.interpreter as tflite
@@ -140,27 +153,29 @@ class EdgeVision:
                 # Robust scaling: Check if coords are normalized (0-1) or pixels (0-640)
                 scale_factor = 1.0 if cx <= 1.0 else (1.0 / 640.0)
                 
-                img_w, img_h = orig_img.size
-                x1 = (cx - w/2) * scale_factor * img_w
-                y1 = (cy - h/2) * scale_factor * img_h
-                x2 = (cx + w/2) * scale_factor * img_w
-                y2 = (cy + h/2) * scale_factor * img_h
-                
-                print(f"[DEBUG] Box (orig): {x1:.0f},{y1:.0f} to {x2:.0f},{y2:.0f}")
-                
-                # Draw green rectangle - triple thickness for "big borders"
-                draw = ImageDraw.Draw(orig_img)
-                box_color = "green"
-                draw.rectangle([x1, y1, x2, y2], outline=box_color, width=24)
-                
-                # Confidence label above the box
-                label = f"PERSON {max_person_conf:.2f}"
-                # Background for text (makes it readable)
-                draw.rectangle([x1, y1 - 60, x1 + 450, y1], fill=box_color)
-                draw.text((x1 + 10, y1 - 55), label, fill="white")
-                
-                # Overwrite the captured photo with the annotated one
-                orig_img.save(self.snapshot_path)
+                # Use OpenCV for drawing (much better text and scaling)
+                img = cv2.imread(self.snapshot_path)
+                if img is not None:
+                    h_img, w_img = img.shape[:2]
+                    x1 = int((cx - w/2) * scale_factor * w_img)
+                    y1 = int((cy - h/2) * scale_factor * h_img)
+                    x2 = int((cx + w/2) * scale_factor * w_img)
+                    y2 = int((cy + h/2) * scale_factor * h_img)
+                    
+                    # Draw thick green rectangle
+                    color = (0, 255, 0) # Green in BGR
+                    cv2.rectangle(img, (x1, y1), (x2, y2), color, 20)
+                    
+                    # Add large confidence label with background
+                    label = f"PERSON {max_person_conf:.2f}"
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    font_scale = 1.6
+                    thickness = 4
+                    (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+                    cv2.rectangle(img, (x1, y1 - th - 25), (x1 + tw + 10, y1), color, -1)
+                    cv2.putText(img, label, (x1 + 5, y1 - 15), font, font_scale, (255, 255, 255), thickness)
+                    
+                    cv2.imwrite(self.snapshot_path, img)
 
             print(f"DONE (Conf: {max_person_conf:.2f})")
             return max_person_conf
@@ -207,13 +222,13 @@ class EdgeVision:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Edge Vision on Termux")
-    parser.add_argument("--model", default="yolov8n_float16.tflite", help="Path to TFLite model")
-    parser.add_argument("--host", help="MQTT Broker IP address")
-    parser.add_argument("--token", default="REDACTED_TOKEN", help="Telegram Bot Token")
-    parser.add_argument("--chat_id", help="Telegram Chat ID (optional)")
-    parser.add_argument("--threshold", type=float, default=0.6, help="Detection threshold")
-    parser.add_argument("--camera", type=int, default=0, help="Camera ID to use (check termux-camera-info)")
-    parser.add_argument("--cooldown", type=int, default=30, help="Cooldown between notifications (seconds)")
+    parser.add_argument("--model", default=os.getenv("MODEL_PATH", "yolov8n_float16.tflite"), help="Path to TFLite model")
+    parser.add_argument("--host", default=os.getenv("MQTT_HOST"), help="MQTT Broker IP address")
+    parser.add_argument("--token", default=os.getenv("TELEGRAM_TOKEN"), help="Telegram Bot Token")
+    parser.add_argument("--chat_id", default=os.getenv("TELEGRAM_CHAT_ID"), help="Telegram Chat ID (optional)")
+    parser.add_argument("--threshold", type=float, default=float(os.getenv("THRESHOLD", 0.6)), help="Detection threshold")
+    parser.add_argument("--camera", type=int, default=int(os.getenv("CAMERA_ID", 0)), help="Camera ID to use")
+    parser.add_argument("--cooldown", type=int, default=int(os.getenv("COOLDOWN", 30)), help="Cooldown (seconds)")
     
     args = parser.parse_args()
 
