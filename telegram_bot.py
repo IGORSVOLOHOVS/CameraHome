@@ -30,10 +30,22 @@ class TelegramBot:
         if not self.chat_id:
             return
         try:
-            with open(photo_path, 'rb') as photo:
-                requests.post(f"{self.base_url}/sendPhoto", 
-                              data={"chat_id": self.chat_id, "caption": caption},
-                              files={"photo": photo}, timeout=15)
+            from PIL import Image
+            # Compress image to prevent network timeouts
+            img = Image.open(photo_path)
+            img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+            temp_path = "snap_compressed.jpg"
+            img.save(temp_path, "JPEG", quality=75)
+            
+            with open(temp_path, 'rb') as photo:
+                r = requests.post(f"{self.base_url}/sendPhoto", 
+                                  data={"chat_id": self.chat_id, "caption": caption},
+                                  files={"photo": photo}, timeout=25)
+                if not r.json().get("ok"):
+                    print(f"[ERROR] Telegram photo send failed: {r.text}")
+                    
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
         except Exception as e:
             print(f"[ERROR] Failed to send photo: {e}")
 
