@@ -62,11 +62,11 @@ class PlantAnalyzer:
         green_mask = cv2.inRange(hsv, lower_green, upper_green)
         green_pixels = cv2.countNonZero(green_mask)
         green_percentage = (green_pixels / total_pixels) * 100.0
-
-        # Draw green mask overlay on the output image for visual feedback
-        overlay = img.copy()
-        overlay[green_mask > 0] = [0, 255, 0] # BGR Green
-        cv2.addWeighted(overlay, 0.3, img, 0.7, 0, img)
+        # Outline green areas with bright green contours (borders)
+        contours, _ = cv2.findContours(green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for cnt in contours:
+            if cv2.contourArea(cnt) > 50:  # Filter small noise
+                cv2.drawContours(img, [cnt], -1, (0, 255, 0), 3)  # Green contour, thickness 3
 
         leaf_count = 0
 
