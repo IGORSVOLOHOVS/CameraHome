@@ -67,7 +67,9 @@ class TelegramBot:
                 "Available Commands:\n"
                 "/photo - Take a photo and analyze it immediately\n"
                 "/status - Get current system status and last metrics\n"
-                "/simulate - Toggle simulation mode (1 min interval vs 3 hours)\n"
+                "/interval <hours> - Set measurement interval in hours (e.g. /interval 2)\n"
+                "/sheets - Get Google Sheets link\n"
+                "/simulate - Toggle simulation mode (1 min interval vs normal)\n"
                 "/update - Check for updates on GitHub and self-restart"
             )
             self.send_message(help_text)
@@ -105,6 +107,29 @@ class TelegramBot:
             if self.on_simulate_toggle:
                 self.on_simulate_toggle()
                 
+        elif cmd.startswith("/interval"):
+            parts = text.split()
+            if len(parts) > 1:
+                try:
+                    val = float(parts[1])
+                    if val <= 0:
+                        raise ValueError
+                    config.INTERVAL_HOURS = val
+                    self.send_message(f"⏰ Measurement interval set to {val} hours.")
+                    if self.on_simulate_toggle:
+                        self.on_simulate_toggle()
+                except ValueError:
+                    self.send_message("❌ Invalid interval value. Please use a positive number (e.g., /interval 2 or /interval 0.5)")
+            else:
+                self.send_message(f"⏰ Current interval is {config.INTERVAL_HOURS} hours. Use `/interval <number>` to change it.")
+                
+        elif cmd.startswith("/sheets"):
+            if config.SPREADSHEET_ID:
+                url = f"https://docs.google.com/spreadsheets/d/{config.SPREADSHEET_ID}/edit?usp=sharing"
+                self.send_message(f"📊 Google Sheets Link:\n{url}")
+            else:
+                self.send_message("❌ Google Sheets ID is not configured in .env.")
+
         elif cmd.startswith("/update"):
             self.send_message("🔄 Checking GitHub for updates...")
             updated, msg = updater.check_and_pull()
