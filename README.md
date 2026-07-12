@@ -1,6 +1,9 @@
 # CameraHome 📸 & Plant Growth Monitor 🌱
 **Autonomous Edge Vision & Metrics Surveillance for Android (Termux)**
 
+![Telegram Bot Demo](telegram_screenshot.png)
+![Google Sheets Log Demo](sheets_screenshot.png)
+
 An AI-powered edge computing ecosystem designed to run entirely on an Android phone via Termux. It includes two primary modules:
 1. **Plant Growth Monitor 🌱**: Tracks plant growth, detects leaves/pots using YOLOv8, outlines green mass contours (HSV), and automatically logs metrics to Google Sheets alongside instant Telegram reports.
 2. **Security Surveillance 📸**: Detects people in real-time and sends alerts with annotated photos to Telegram and Home Assistant (via MQTT).
