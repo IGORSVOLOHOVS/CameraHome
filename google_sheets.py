@@ -29,6 +29,13 @@ def upload_to_drive(file_path, filename):
         return None
 
     try:
+        from PIL import Image
+        # Compress image to prevent network timeouts
+        img = Image.open(file_path)
+        img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+        temp_upload_path = "temp_drive_upload.jpg"
+        img.save(temp_upload_path, "JPEG", quality=75)
+
         creds = Credentials.from_service_account_file(config.CREDENTIALS_FILE, scopes=SCOPES)
         session = AuthorizedSession(creds)
         
@@ -39,11 +46,15 @@ def upload_to_drive(file_path, filename):
         
         files = {
             'data': ('metadata', json.dumps(metadata), 'application/json; charset=UTF-8'),
-            'file': ('image', open(file_path, 'rb'), 'image/jpeg')
+            'file': ('image', open(temp_upload_path, 'rb'), 'image/jpeg')
         }
         
         url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
         r = session.post(url, files=files, timeout=25)
+        
+        # Clean up temp file
+        if os.path.exists(temp_upload_path):
+            os.remove(temp_upload_path)
         
         if r.status_code == 200:
             file_id = r.json().get('id')
