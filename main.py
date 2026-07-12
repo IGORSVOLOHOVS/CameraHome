@@ -31,12 +31,18 @@ def run_measurement():
         
     green_pct, leaf_cnt = analyzer.analyze_image("snap.jpg")
     
+    # Upload photo to Google Drive
+    drive_filename = f"plant_{int(now)}.jpg"
+    print("[INFO] Uploading snapshot to Google Drive...")
+    photo_url = google_sheets.upload_to_drive("snap.jpg", drive_filename)
+    
     # Write to local DB
     timestamp = logger_db.log_metrics(
         green_percentage=green_pct,
         leaf_count=leaf_cnt,
         temperature=None, # In future, read from MQTT
-        humidity=None     # In future, read from MQTT
+        humidity=None,    # In future, read from MQTT
+        photo_url=photo_url
     )
     
     msg = (
