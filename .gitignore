@@ -7,3 +7,5 @@ yolov8n.pt
 snap*.jpg
 __pycache__/
 *.pyc
+credentials.json
+*.db
