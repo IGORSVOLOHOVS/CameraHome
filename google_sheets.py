@@ -1,12 +1,13 @@
 import os
 import json
 import gspread
+import requests
 from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import AuthorizedSession
 import config
 import logger_db
 
-# Google Sheets and Drive API Scopes
+# Google Sheets API Scopes
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
@@ -21,56 +22,39 @@ def get_sheets_client():
 
 def upload_to_drive(file_path, filename):
     """
-    Uploads a file to Google Drive under the Service Account and makes it readable by anyone.
-    Returns: Direct download link for the image, or None if upload failed.
+    Uploads a file to Catbox.moe and returns a public URL.
+    This bypasses Google Drive Service Account quota limits completely.
     """
-    if not os.path.exists(config.CREDENTIALS_FILE):
-        print("[ERROR] Credentials file not found, cannot upload to Drive.")
-        return None
-
     try:
         from PIL import Image
         # Compress image to prevent network timeouts
         img = Image.open(file_path)
         img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
-        temp_upload_path = "temp_drive_upload.jpg"
+        temp_upload_path = "temp_catbox_upload.jpg"
         img.save(temp_upload_path, "JPEG", quality=75)
 
-        creds = Credentials.from_service_account_file(config.CREDENTIALS_FILE, scopes=SCOPES)
-        session = AuthorizedSession(creds)
-        
-        metadata = {
-            'name': filename,
-            'mimeType': 'image/jpeg'
+        url = "https://catbox.moe/user/api.php"
+        data = {
+            "reqtype": "fileupload"
         }
         
-        files = {
-            'data': ('metadata', json.dumps(metadata), 'application/json; charset=UTF-8'),
-            'file': ('image', open(temp_upload_path, 'rb'), 'image/jpeg')
-        }
-        
-        url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
-        r = session.post(url, files=files, timeout=25)
-        
+        with open(temp_upload_path, "rb") as f:
+            files = {"fileToUpload": f}
+            r = requests.post(url, data=data, files=files, timeout=25)
+            
         # Clean up temp file
         if os.path.exists(temp_upload_path):
             os.remove(temp_upload_path)
-        
-        if r.status_code == 200:
-            file_id = r.json().get('id')
             
-            # Make the file public so Google Sheets =IMAGE() can read it
-            permission_url = f"https://www.googleapis.com/drive/v3/files/{file_id}/permissions"
-            session.post(permission_url, json={'role': 'reader', 'type': 'anyone'}, timeout=10)
-            
-            # Direct link to access image
-            direct_link = f"https://docs.google.com/uc?export=download&id={file_id}"
+        if r.status_code == 200 and r.text.startswith("https://"):
+            direct_link = r.text.strip()
+            print(f"[SUCCESS] Uploaded photo to Catbox: {direct_link}")
             return direct_link
         else:
-            print(f"[ERROR] Google Drive API upload failed ({r.status_code}): {r.text}")
+            print(f"[ERROR] Catbox upload failed ({r.status_code}): {r.text}")
             return None
     except Exception as e:
-        print(f"[ERROR] Exception during Google Drive upload: {e}")
+        print(f"[ERROR] Exception during Catbox upload: {e}")
         return None
 
 def sync_to_sheets():
