@@ -2,6 +2,29 @@
 
 Reverse-engineered from the code at commit `f6f2902` on 2026-11-18. Every requirement describes behaviour that exists in the code and cites it. Behaviour promised elsewhere but missing from the code is listed under 3.8. The documentation hub is [docs/README.md](docs/README.md).
 
+<!-- jira-sync:start -->
+Jira: KAN-122
+
+## Tasks
+
+This list is one ticket in Jira project KAN, [KAN-122](https://igorsvolohovs.atlassian.net/browse/KAN-122). Each line is a checkbox there: tick it in Jira and the sync ticks it here; add a checkbox there and it is appended here. Done items are the features described in section 3; open items are what the project declares but the code does not do yet.
+
+- [x] Configuration (section 3.1) <!-- spec-configuration -->
+- [x] Startup and scheduling (`main.py`) (section 3.2) <!-- spec-startup-and-scheduling-main-py -->
+- [x] Capture and analysis (`cv_yolo.py`) (section 3.3) <!-- spec-capture-and-analysis-cvyolo-py -->
+- [x] Storage, hosting and sync (section 3.4) <!-- spec-storage-hosting-and-sync -->
+- [x] Telegram bot (`telegram_bot.py`) (section 3.5) <!-- spec-telegram-bot-telegrambot-py -->
+- [x] Person detector (`vision_mqtt.py`) (section 3.6) <!-- spec-person-detector-visionmqtt-py -->
+- [x] Reference to the shared standard (section 3.7) <!-- spec-reference-to-the-shared-standard -->
+- [ ] `/status` reports "last measured metrics" (declared, not implemented) <!-- spec-status-reports-last-measured-metrics -->
+- [ ] Leaving `TELEGRAM_CHAT_ID` as `your_telegram_chat_id` triggers auto-discovery (declared, not implemented) <!-- spec-leaving-telegramchatid-as-yourtelegramchatid-trigg -->
+- [ ] Temperature and humidity "in future, read from MQTT" (declared, not implemented) <!-- spec-temperature-and-humidity-in-future-read-from-mqtt -->
+- [ ] MQTT for the plant monitor "for future expansion" (declared, not implemented) <!-- spec-mqtt-for-the-plant-monitor-for-future-expansion -->
+- [ ] Branch `plant-growth-metrics-termux` (declared, not implemented) <!-- spec-branch-plant-growth-metrics-termux -->
+- [ ] Upload "to Google Drive" (declared, not implemented) <!-- spec-upload-to-google-drive -->
+
+<!-- jira-sync:end -->
+
 ## 1. Purpose and scope
 
 **In scope**
